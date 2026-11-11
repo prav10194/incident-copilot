@@ -136,7 +136,12 @@ def build_index():
     # Delete and recreate so a rebuild never leaves stale chunks behind.
     if COLLECTION in [c.name for c in client.list_collections()]:
         client.delete_collection(COLLECTION)
-    collection = client.create_collection(COLLECTION)
+        # State the distance metric explicitly. Chroma's default is squared L2, and
+    # relying on that default means a library upgrade could silently change
+    # every score. With cosine, distance = 1 - cosine similarity.
+    collection = client.create_collection(
+        COLLECTION, metadata={"hnsw:space": "cosine"}
+    )
 
     ids, texts, metas = build_documents()
     print(f"embedding {len(texts)} chunks with {MODEL_NAME} ...")
@@ -165,7 +170,7 @@ def search(query, k=5):
             "doc_id": meta["doc_id"],
             "doc_type": meta["doc_type"],
             "root_cause_category": meta["root_cause_category"],
-            "similarity": round(1 - distance / 2, 3),
+            "similarity": round(1 - distance, 3),
             "text": doc,
         })
     return hits
