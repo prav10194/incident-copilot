@@ -1,0 +1,62 @@
+[
+  {
+    "id": "RB-01",
+    "title": "Connection pool exhaustion",
+    "root_cause_category": "connection_pool_exhaustion",
+    "body": "Check pool metrics for threads awaiting connection. Confirm the database itself is healthy and accepting connections. If the pool is saturated but the database is idle, the leak is in the application: look for connections acquired outside a context manager. Raise the pool only after the leak is ruled out."
+  },
+  {
+    "id": "RB-02",
+    "title": "Memory leak and OOMKill",
+    "root_cause_category": "memory_leak",
+    "body": "Compare heap or RSS growth against request volume. A flat request rate with climbing memory points at retained objects, usually an unbounded cache or an accumulating list. Capture a heap dump before the restart, since the evidence is lost afterwards."
+  },
+  {
+    "id": "RB-03",
+    "title": "Bad deploy",
+    "root_cause_category": "bad_deploy",
+    "body": "Correlate the error-rate change with the rollout timestamp. If they line up within minutes, roll back first and investigate afterwards. Do not attempt a forward fix during the incident unless rollback is impossible."
+  },
+  {
+    "id": "RB-04",
+    "title": "Expired TLS certificate",
+    "root_cause_category": "expired_certificate",
+    "body": "A sudden total failure of outbound calls with no deployment is almost always credentials or certificates. Check the expiry date on the presented chain. Rotation is the fix; the follow-up is an expiry alert at 30 days."
+  },
+  {
+    "id": "RB-05",
+    "title": "Database lock contention",
+    "root_cause_category": "db_lock_contention",
+    "body": "Inspect current locks and the longest waiting transaction. Writes stalling while reads are fine indicates row or table locks. Look for long transactions holding locks across external calls."
+  },
+  {
+    "id": "RB-06",
+    "title": "Upstream timeout",
+    "root_cause_category": "upstream_timeout",
+    "body": "Compare our own latency with the dependency's. If ours is normal and theirs is slow, the fix is isolation, not optimisation: timeout, circuit breaker, and a degraded fallback."
+  },
+  {
+    "id": "RB-07",
+    "title": "Disk full",
+    "root_cause_category": "disk_full",
+    "body": "Identify the largest directories and the oldest files. Logs and temporary files are the usual cause. Free space first to restore service, then add rotation and retention so it cannot recur."
+  },
+  {
+    "id": "RB-08",
+    "title": "Cache stampede",
+    "root_cause_category": "cache_stampede",
+    "body": "A miss-rate spike followed by a database connection spike for one key prefix indicates simultaneous expiry. Fix with jittered TTLs and single-flight refill so only one request repopulates a key."
+  },
+  {
+    "id": "RB-09",
+    "title": "Configuration drift",
+    "root_cause_category": "config_drift",
+    "body": "When identical code behaves differently per environment, diff the effective configuration rather than reading the code. Treat the repository as the source of truth and detect drift in CI."
+  },
+  {
+    "id": "RB-10",
+    "title": "Third-party rate limit",
+    "root_cause_category": "rate_limit_exceeded",
+    "body": "A 429 response means our call rate, not our correctness, is the problem. Check quota windows and whether retries are amplifying load. Throttle on our side and back off with jitter."
+  }
+]
