@@ -33,101 +33,171 @@ SERVICES = [
 CAUSES = {
     "connection_pool_exhaustion": {
         "runbook": "RB-01",
-        "symptom": "requests queue then time out while CPU stays flat",
+        "symptoms": [
+            "requests queue then time out while CPU stays flat",
+            "threads pile up waiting on the database, server load is normal",
+            "p99 latency spikes to 30s but the database reports almost no activity",
+            "intermittent timeouts under load that clear when traffic drops",
+        ],
         "logs": [
             "HikariPool-1 - Connection is not available, request timed out after 30000ms",
             "WARN  pool size 20 reached, 147 threads awaiting connection",
             "java.sql.SQLTransientConnectionException: timeout acquiring connection",
+            "ERROR  active=20 idle=0 waiting=203 pool=primary",
+            "INFO  database CPU 6%, active queries 3",
         ],
         "fix": "raised pool size and added a 5s acquisition timeout with retry",
     },
     "memory_leak": {
         "runbook": "RB-02",
-        "symptom": "latency climbs over hours and pods restart on OOM",
+        "symptoms": [
+            "latency climbs over hours and pods restart on OOM",
+            "resident memory grows steadily until the container is killed",
+            "the service degrades through the day and recovers after a restart",
+            "heap usage never returns to baseline after traffic peaks",
+        ],
         "logs": [
             "Killed process 1 (python) total-vm:8216404kB, anon-rss:7901232kB",
             "WARN  GC overhead limit approaching: 94% heap after full GC",
             "kubelet  Container app OOMKilled, restarting (restartCount=7)",
+            "INFO  rss 1.2GB -> 6.8GB over 5h, request rate unchanged",
+            "ERROR  MemoryError during response serialisation",
         ],
         "fix": "fixed an unbounded in-memory cache that never evicted entries",
     },
     "bad_deploy": {
         "runbook": "RB-03",
-        "symptom": "error rate jumps within minutes of a release",
+        "symptoms": [
+            "error rate jumps within minutes of a release",
+            "5xx responses begin immediately after a rollout completes",
+            "a new exception appears in volume with no change in traffic",
+            "failures start at the exact timestamp of a version bump",
+        ],
         "logs": [
             "ERROR  AttributeError: 'NoneType' object has no attribute 'tenant_id'",
             "INFO   rollout 4f2a1c completed, 100% traffic shifted",
             "ERROR  5xx rate 0.4% -> 31.8% over 4 minutes",
+            "ERROR  TypeError: missing 1 required positional argument: 'region'",
+            "INFO   image tag app:2026.11.3 replaced app:2026.11.2",
         ],
         "fix": "rolled back the release and added a canary gate on 5xx rate",
     },
     "expired_certificate": {
         "runbook": "RB-04",
-        "symptom": "all outbound TLS calls fail at once with no code change",
+        "symptoms": [
+            "all outbound TLS calls fail at once with no code change",
+            "every dependency becomes unreachable simultaneously overnight",
+            "handshakes are rejected although the network path is healthy",
+            "a service that was untouched for weeks stops authenticating",
+        ],
         "logs": [
             "ERROR  javax.net.ssl.SSLHandshakeException: PKIX path validation failed",
             "ERROR  certificate expired on 2026-03-14T00:00:00Z",
             "WARN   retry 3/3 failed, circuit opened for upstream billing-gw",
+            "ERROR  x509: certificate has expired or is not yet valid",
+            "INFO   tcp connect to billing-gw:443 succeeded, tls negotiation failed",
         ],
         "fix": "rotated the certificate and added a 30-day expiry alert",
     },
     "db_lock_contention": {
         "runbook": "RB-05",
-        "symptom": "writes stall while reads stay healthy",
+        "symptoms": [
+            "writes stall while reads stay healthy",
+            "update statements hang for a minute then fail, selects are instant",
+            "a queue of blocked transactions builds up behind one long query",
+            "order submissions time out but the catalogue loads fine",
+        ],
         "logs": [
             "ERROR  deadlock detected, process 4471 waits for ShareLock on transaction",
             "WARN   lock_waits 312 in last minute, longest 48s",
             "INFO   autovacuum skipped: relation orders is locked",
+            "ERROR  canceling statement due to lock timeout",
+            "INFO   blocking pid 8812 idle in transaction for 4m12s",
         ],
         "fix": "shortened the transaction and reordered writes to a consistent key order",
     },
     "upstream_timeout": {
         "runbook": "RB-06",
-        "symptom": "our service is healthy but a dependency is slow",
+        "symptoms": [
+            "our service is healthy but a dependency is slow",
+            "requests that call one partner API hang, everything else is fast",
+            "our own metrics look normal while end-to-end latency is terrible",
+            "thread pools fill up waiting on a third-party response",
+        ],
         "logs": [
             "ERROR  upstream inventory-svc responded in 9821ms, exceeds 3000ms budget",
             "WARN   bulkhead rejected 214 calls, queue full",
             "INFO   our own p50 unchanged at 42ms",
+            "ERROR  read timed out after 10000ms calling inventory-svc/v2/stock",
+            "WARN   dependency error budget consumed 140% this hour",
         ],
         "fix": "added a timeout, a circuit breaker and a cached fallback response",
     },
     "disk_full": {
         "runbook": "RB-07",
-        "symptom": "writes fail and the process cannot log",
+        "symptoms": [
+            "writes fail and the process cannot log",
+            "the service refuses new data and health checks go silent",
+            "file operations fail with no space errors across one node",
+            "a node stops accepting writes while its peers are fine",
+        ],
         "logs": [
             "ERROR  OSError: [Errno 28] No space left on device",
             "WARN   /var/log at 100% (48G/48G), oldest file 94 days",
             "ERROR  failed to flush WAL segment, shutting down",
+            "ERROR  could not write to temporary file: No space left on device",
+            "WARN   inode usage 99.4% on /dev/nvme0n1p1",
         ],
         "fix": "added log rotation with a retention limit and a disk-usage alert",
     },
     "cache_stampede": {
         "runbook": "RB-08",
-        "symptom": "a cache expiry causes a burst of identical database queries",
+        "symptoms": [
+            "a cache expiry causes a burst of identical database queries",
+            "thousands of requests recompute the same value at the same moment",
+            "a traffic cliff in the cache turns into a flood on the database",
+            "periodic spikes every time a batch of keys ages out together",
+        ],
         "logs": [
             "WARN   cache miss rate 2% -> 98% in 10s for key prefix catalog:",
             "ERROR  database connections 18 -> 400, rejecting new queries",
             "INFO   TTL batch expiry: 240000 keys evicted simultaneously",
+            "WARN   identical query executed 3812 times in 5s",
+            "ERROR  redis GET catalog:home returned nil for 94% of requests",
         ],
         "fix": "added jittered TTLs and a single-flight lock on cache refill",
     },
     "config_drift": {
         "runbook": "RB-09",
-        "symptom": "one environment misbehaves while identical code works elsewhere",
+        "symptoms": [
+            "one environment misbehaves while identical code works elsewhere",
+            "the same build passes in staging and fails in production",
+            "behaviour differs per region with no corresponding code change",
+            "a feature behaves as though it were disabled in only one cluster",
+        ],
         "logs": [
             "ERROR  feature flag async_settlement=false in prod, true in staging",
             "WARN   config checksum mismatch: expected 9ab12f, got 41cc08",
             "ERROR  unknown region value 'us-east-1a' for parameter queue_region",
+            "WARN   env var SETTLEMENT_MODE unset, falling back to 'legacy'",
+            "INFO   effective config differs from repository at 3 keys",
         ],
         "fix": "moved the value into version-controlled config with a drift check in CI",
     },
     "rate_limit_exceeded": {
         "runbook": "RB-10",
-        "symptom": "a third-party API starts rejecting our calls",
+        "symptoms": [
+            "a third-party API starts rejecting our calls",
+            "a provider returns refusals once our call volume rises",
+            "requests succeed early in the hour and fail near the end of it",
+            "our retries make a partner outage worse instead of better",
+        ],
         "logs": [
             "ERROR  429 Too Many Requests from provider api.payments-gw.test",
             "WARN   quota 10000/hour exhausted at 14:22, resets 15:00",
             "ERROR  retry storm detected: 3400 retries in 60s",
+            "WARN   provider header x-ratelimit-remaining: 0",
+            "ERROR  backoff disabled, 12 immediate retries per failed call",
         ],
         "fix": "added token-bucket throttling and exponential backoff with jitter",
     },
@@ -205,18 +275,19 @@ def build(rng):
         opened = start + timedelta(days=i * 4, hours=rng.randint(0, 10))
         minutes = {"P1": 95, "P2": 140, "P3": 260, "P4": 480}[severity]
 
-        # Shuffle a copy so log order varies between incidents.
-        logs = list(spec["logs"])
-        rng.shuffle(logs)
+        # Each incident gets its own phrasing and its own subset of log lines,
+        # so two incidents with the same root cause are not near-duplicates.
+        symptom = rng.choice(spec["symptoms"])
+        logs = rng.sample(spec["logs"], 3)
 
         incidents.append({
             "id": f"INC-{1001 + i}",
             "service": service,
             "severity": severity,
             "opened_at": opened.isoformat(timespec="seconds"),
-            "title": f"{service}: {spec['symptom']}",
+            "title": f"{service}: {symptom}",
             "impact": rng.choice(IMPACTS),
-            "symptoms": spec["symptom"],
+            "symptoms": symptom,
             "log_excerpt": "\n".join(logs),
             "root_cause_category": cause,
             "resolution": spec["fix"],
